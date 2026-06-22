@@ -1,0 +1,861 @@
+import numpy as np
+from Pyfhel import Pyfhel
+import random
+import sys
+from matplotlib import rc,rcParams
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import time
+import numpy as np
+from Pyfhel import Pyfhel
+import random
+import sys
+from matplotlib import rc,rcParams
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import time
+import math
+from math import comb
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
+
+
+ERROR = .1
+bk = 0.276
+LAMBDA = 21
+ETA = .5
+
+numconsumers = 1405
+numsuppliers = 10
+
+
+d = [6.57312, 3.19614, 9.39501, 3.23684, 7.11644, 9.60693, 7.11762, 5.15677, 8.61886, 7.70245]
+eph = [-0.812197, -0.908682, -0.731571, -0.907519, -0.796673, -0.725516, -0.796639, -0.852664, -0.753747, -0.77993]
+
+
+def F(i, in_NumberOfTerms):
+    return sum(comb(n, i) for n in range(i, in_NumberOfTerms))
+
+
+
+n_mults = 12
+
+HE = Pyfhel(key_gen=True, context_params={
+    'scheme': 'CKKS',
+    'n': 2**15,         # For CKKS, n/2 values can be encoded in a single ciphertext. 
+    'scale': 2**60,     # Each multiplication grows the final scale
+    'qi_sizes': [60]+ [60]*n_mults +[60] # Number of bits of each prime in the chain. 
+                        # Intermediate prime sizes should be close to log2(scale).
+                        # One per multiplication! More/higher qi_sizes means bigger 
+                        #  ciphertexts and slower ops.
+})
+
+
+
+
+HE.relinKeyGen()
+
+def PolyFittingSelf(X, Y, degree, alpha, EN_normalized_Values):
+
+    _r = lambda y: np.round(y, decimals=64)
+
+    B = np.polyfit(X, Y, degree)
+
+    # print('Polynomial Fitting with Numpy')
+    # print(B, end='\n\n')
+    B3_1 =  B.tolist()
+    B3 = B3_1[::-1]
+    # print(B3)
+    # print('\n')
+
+    K_correction = 1.0
+    
+
+    allEncryptedParams = getEncryptedValues(EN_normalized_Values, K_correction)
+    Final_error = ErrorCorrection(EN_normalized_Values, B3, allEncryptedParams, K_correction)
+
+
+    FinalInverse_decryted1  = HE.decryptFrac(Final_error)
+    finalErrors = _r(FinalInverse_decryted1)
+
+    finalErrors = finalErrors[:1000]
+
+    mean_error3 = np.mean(abs(Y - finalErrors))
+
+    # print('mean_error3 (Encrypted) =', mean_error3)
+
+    # print('\n')
+
+    mse3_EN = np.mean((Y - finalErrors)**2)
+
+    # print('mse3  (Encrypted) =', mse3_EN)
+
+    # print('\n')
+
+    max_error3 = np.max(np.abs(Y - finalErrors))
+
+    # print('max_error3  (Encrypted) =', max_error3)
+
+    # print('\n')
+
+
+    all_estimated1 = []
+    all_estimated2 = []
+    all_estimated3 = []
+    all_estimated4 = []
+    all_estimated5 = [] 
+
+    for i in range(len(X)):
+
+        y_estimated_3 = 0
+
+        for j in range(len(B3)):
+
+            y_estimated_3 = y_estimated_3 + ((pow(X[i], j)) * (B3[j]))
+
+        all_estimated3.append(y_estimated_3)
+
+    mean_error3 = np.mean(abs(Y - all_estimated3))
+
+    # print('mean_error3 =', mean_error3)
+
+    # print('\n')
+
+    mse3 = np.mean((Y - all_estimated3)**2)
+
+    # print('mse3 =', mse3)
+
+    # print('\n')
+
+    max_error3 = np.max(np.abs(Y - all_estimated3))
+
+    # print('max_error3 =', max_error3)
+
+    # print('\n')
+
+    return degree, B3, mse3_EN
+
+
+
+def getEncryptedValues(EN_x, in_Constant_K):
+
+    _r = lambda y: np.round(y, decimals=64)
+
+    Constant_K = in_Constant_K
+
+    # HE.rescale_to_next(EN_x)
+
+    EN_x_2_1 = Constant_K * EN_x
+    HE.rescale_to_next(EN_x_2_1)
+    ~EN_x_2_1
+
+    EN_x_2 =  EN_x * EN_x_2_1
+    HE.rescale_to_next(EN_x_2)
+    ~EN_x_2
+
+    EN_x_3 = EN_x_2 * EN_x_2_1
+    HE.rescale_to_next(EN_x_3)
+    ~EN_x_3
+
+    EN_x_4_1 = EN_x_2 * Constant_K
+    HE.rescale_to_next(EN_x_4_1)
+    ~EN_x_4_1
+
+    EN_x_4 = EN_x_2 * EN_x_4_1
+    HE.rescale_to_next(EN_x_4)
+    ~EN_x_4
+
+    EN_x_5 = EN_x_2_1 * EN_x_4
+    HE.rescale_to_next(EN_x_5)
+    ~EN_x_5
+
+    EN_x_6 = EN_x_4 * EN_x_4_1
+    HE.rescale_to_next(EN_x_6)
+    ~EN_x_6
+
+    EN_x_7 = EN_x_6 * EN_x_2_1
+    HE.rescale_to_next(EN_x_7)
+    ~EN_x_7
+
+    EN_x_8_1 = EN_x_4 * Constant_K
+    HE.rescale_to_next(EN_x_8_1)
+    ~EN_x_8_1 
+
+    EN_x_8 = EN_x_8_1 * EN_x_4
+    HE.rescale_to_next(EN_x_8)
+    ~EN_x_8
+
+    EN_x_9 = EN_x_2_1 * EN_x_8
+    HE.rescale_to_next(EN_x_9)
+    ~EN_x_9
+
+    EN_x_10 = EN_x_8 * EN_x_4_1
+    HE.rescale_to_next(EN_x_10)
+    ~EN_x_10
+
+    EN_x_11_1 = Constant_K * EN_x_8
+    HE.rescale_to_next(EN_x_11_1)
+    ~EN_x_11_1
+
+    EN_x_11 = EN_x_3 * EN_x_11_1
+    HE.rescale_to_next(EN_x_11)
+    ~EN_x_11
+
+    EN_x_12 = EN_x_8_1 * EN_x_8
+    HE.rescale_to_next(EN_x_12)
+    ~EN_x_12
+
+    EN_x_13 = EN_x_11_1 * EN_x_5
+    HE.rescale_to_next(EN_x_13)
+    ~EN_x_13
+
+    EN_x_14 = EN_x_11_1 * EN_x_6
+    HE.rescale_to_next(EN_x_14)
+    ~EN_x_14
+
+    EN_x_15 = EN_x_11_1 * EN_x_7
+    HE.rescale_to_next(EN_x_15)
+    ~EN_x_15
+
+    EN_x_16 = EN_x_11_1 * EN_x_8
+    HE.rescale_to_next(EN_x_16)
+    ~EN_x_16
+
+    EN_x_17 = EN_x_2_1 * EN_x_16
+    HE.rescale_to_next(EN_x_17)
+    ~EN_x_17
+
+    EN_x_18 = EN_x_4_1 * EN_x_16
+    HE.rescale_to_next(EN_x_18)
+    ~EN_x_18
+
+    # EN_x_19_1 = EN_x_16 * Constant_K
+    # HE.rescale_to_next(EN_x_19_1)
+    # ~EN_x_19_1
+
+    # EN_x_19 = EN_x_3 * EN_x_19_1
+    # HE.rescale_to_next(EN_x_19)
+    # ~EN_x_19
+
+    # EN_x_20 = EN_x_19_1 * EN_x_4
+    # HE.rescale_to_next(EN_x_20)
+    # ~EN_x_20  
+
+    # EN_x_21 = EN_x_19_1 * EN_x_5
+    # HE.rescale_to_next(EN_x_21)
+    # ~EN_x_21
+
+    # EN_x_22 = EN_x_19_1 * EN_x_6
+    # HE.rescale_to_next(EN_x_22)
+    # ~EN_x_22
+
+    # EN_x_23 = EN_x_19_1 * EN_x_7
+    # HE.rescale_to_next(EN_x_23)
+    # ~EN_x_23
+
+    # EN_x_24 = EN_x_19_1 * EN_x_8
+    # HE.rescale_to_next(EN_x_24)
+    # ~EN_x_24
+
+    # EN_x_25 = EN_x_19_1 * EN_x_9
+    # HE.rescale_to_next(EN_x_25)
+    # ~EN_x_25
+
+    EncryptedValues = [EN_x, EN_x_2, EN_x_3, EN_x_4, EN_x_5, EN_x_6, EN_x_7, EN_x_8, EN_x_9, EN_x_10 , EN_x_11, EN_x_12, EN_x_13, EN_x_14, EN_x_15, EN_x_16, EN_x_17, EN_x_18] #, EN_x_19] #, EN_x_20 , EN_x_21, EN_x_22, EN_x_23, EN_x_24, EN_x_25]
+
+    return EncryptedValues
+
+
+
+def DIV_HE(EN_x, in_NumberOfTerms, in_Constant_K, EncryptedValues, in_x, in_originalNotNormalized, Scale):
+    _r = lambda y: np.round(y, decimals=64)
+
+    NumberOfTerms = in_NumberOfTerms
+
+
+    Coff_Result = [(-1)**i for i in range(NumberOfTerms)]
+
+    # print(Coff_Result)
+
+    index = 0
+    All_Ks = []
+
+    while index < (NumberOfTerms -1):
+        index += 1
+        K_Index = index - 1
+        K_Value = in_Constant_K**K_Index
+        All_Ks.append(K_Value)
+
+    # print(All_Ks)
+
+    InverseX = Coff_Result[0]
+    Coff_Result_mod = []
+
+    for i in range(1, NumberOfTerms):
+        new_Coff_value = Coff_Result[i] / All_Ks[i-1]
+        Coff_Result_mod.append(new_Coff_value)
+
+    # print('All Final Coeff: ', Coff_Result_mod)
+
+    numberOfTermsComputed = 0
+    eachTermValueHE = []
+
+    # print('Normalized Value: ', in_x)
+
+    for i in range(1, NumberOfTerms):
+        valueX = EncryptedValues[i-1]
+
+        Decrypted1  = HE.decryptFrac(valueX)
+        Decrypted_List1 = _r(Decrypted1)
+        Decrypted_Value1 = Decrypted_List1[0]
+
+        # print('X^i K^(i-1): ', Decrypted_Value1)
+
+        valueTerm = 0
+        coffValue = Coff_Result_mod[i-1] 
+
+        # print('(-1)^i/K^(i-1): ', coffValue)
+
+        try:
+            valueTerm = valueX * coffValue
+            HE.rescale_to_next(valueTerm)
+            ~valueTerm
+
+            Decrypted  = HE.decryptFrac(valueTerm)
+            Decrypted_List = _r(Decrypted)
+            Decrypted_Value = Decrypted_List[0]
+
+            eachTermValueHE.append(Decrypted_Value)
+
+            # print(Decrypted_Value)
+
+            # print('term: ', Decrypted_Value)
+
+            InverseX = InverseX + valueTerm
+            numberOfTermsComputed = i
+
+        except Exception as e:
+            # print('exception...', e)
+            numberOfTermsComputed = i
+            break
+
+    Decrypted11111  = HE.decryptFrac(InverseX)
+    Decrypted_List11111 = _r(Decrypted11111)
+    # Decrypted_Value111111 = Decrypted_List11111[0]
+
+
+    # in_originalNotNormalized --> list
+
+    # in_x --> list of normalized
+
+    # Decrypted_List11111 ->computed list of normalized inverse
+
+
+
+    # errorDiff_withOrg = pow((abs((((1.0)/in_originalNotNormalized)) - Decrypted_Value111111)), 2)
+    # errorDiff = pow(((abs(Decrypted_Value111111 - ((1.0)/in_x)))/ Scale), 2)
+    # ratio = (((1.0)/in_originalNotNormalized)/Decrypted_Value111111)
+
+    # Calculating errorDiff_withOrg
+    errorDiff_withOrg = sum([pow((abs((1.0 / org_val) - dec_val)), 2) 
+                            for org_val, dec_val in zip(in_originalNotNormalized, Decrypted_List11111)])
+
+    # Calculating errorDiff
+    errorDiff = sum([pow((abs(dec_val - (1.0 / x_val)) / Scale), 2) 
+                     for dec_val, x_val in zip(Decrypted_List11111, in_x)])
+
+    # Calculating ratio
+    ratio = sum([(1.0 / org_val) / dec_val 
+                 for org_val, dec_val in zip(in_originalNotNormalized, Decrypted_List11111)])
+
+
+
+    inversed_list = [1.0 / x for x in in_originalNotNormalized]
+
+    Decrypted_List_inverse = Decrypted_List11111
+
+    # errorDiff_noMSE = ([(abs(dec_val - (1.0 / x_val)) / Scale) for dec_val, x_val in zip(Decrypted_List11111, in_originalNotNormalized)])
+
+    # print(inversed_list)
+    # print(Decrypted_List_inverse)
+
+    errorDiff_noMSE = [abs(a - b) for a, b in zip(inversed_list, Decrypted_List_inverse)]
+
+    # print(errorDiff_noMSE)
+
+    # Converting results to numpy arrays (optional, if needed)
+    errorDiff_withOrg = np.array(errorDiff_withOrg)
+    errorDiff = np.array(errorDiff)
+    ratio = np.array(ratio)
+
+    # errorDiff_noMSE = np.array(errorDiff_noMSE)
+
+    # Printing results
+    # print("errorDiff_withOrg:", errorDiff_withOrg)
+    # print("errorDiff:", errorDiff)
+    # print("ratio:", ratio)
+
+    return InverseX, numberOfTermsComputed, errorDiff_withOrg, errorDiff, ratio, errorDiff_noMSE, Decrypted_List11111
+
+
+
+def ErrorCorrection(in_inverse, FinalBestPossibleCoeff, allEncryptedParamsOfInverse, K):
+    _r = lambda y: np.round(y, decimals=64)
+    y_estimated = FinalBestPossibleCoeff[0]
+
+    # Create a copy of the coefficients to avoid modifying the original
+    adjusted_coeffs = FinalBestPossibleCoeff.copy()
+
+    for i in range(1, len(adjusted_coeffs)):
+        adjusted_coeffs[i] /= K**(i-1)
+
+
+    for j in range(1, len(adjusted_coeffs)):
+
+        try:
+            value_iter = allEncryptedParamsOfInverse[j-1] * adjusted_coeffs[j]
+
+            HE.rescale_to_next(value_iter)
+            ~value_iter
+
+            y_estimated = y_estimated + (value_iter)
+        
+        except Exception as e:
+            # print('exception...', e)
+            break
+
+    return y_estimated
+
+
+def Step1(Normalized_value, Scale, Intercept, min_val_1, max_val_1, normalized_list_normal, in_originalValues):
+
+    _r = lambda y: np.round(y, decimals=64)
+
+    All_Ks = [.4, .5, .6, .7, .8, .9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 20, 25, 30, 35, 40, 50]
+
+    NumberOfTermsTotal = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+
+
+    Normalized_value_ = Normalized_value - 1
+
+    errordiff_All = []
+    errordiff1_All = []
+    errordiff2_All = []
+
+    for K in All_Ks:
+        allEncryptedParams = getEncryptedValues(Normalized_value_, K)
+
+        errordiff_SameK = []
+        errordiff1_SameK = []
+        errordiff2_SameK = []
+
+        for NumberOfTerms in NumberOfTermsTotal:
+            EN_DenomInverse, NumberOfTermsRequired, errorDiff, errorDiff1, errorDiff2, errorDiff3, allInverses = DIV_HE(Normalized_value, NumberOfTerms, K, allEncryptedParams, normalized_list_normal, in_originalValues, Scale)
+
+            errordiff_SameK.append(errorDiff)
+            errordiff1_SameK.append(errorDiff1)
+            errordiff2_SameK.append(errorDiff2)
+
+        errordiff_All.append(errordiff_SameK)
+        errordiff1_All.append(errordiff1_SameK)
+        errordiff2_All.append(errordiff2_SameK)
+
+    # Initialize a 2D numpy array to store cumulative errors for each K and number of terms pair
+    cumulative_errors = np.zeros((len(All_Ks), len(NumberOfTermsTotal)))
+    cumulative_errors1 = np.zeros((len(All_Ks), len(NumberOfTermsTotal)))
+    cumulative_errors2 = np.zeros((len(All_Ks), len(NumberOfTermsTotal)))
+
+    # Sum the errors for each K and number of terms pair
+    for i in range(len(All_Ks)):
+        for j in range(len(NumberOfTermsTotal)):
+            cumulative_errors[i][j] = errordiff_All[i][j]
+            cumulative_errors1[i][j] = errordiff1_All[i][j]
+            cumulative_errors2[i][j] = errordiff2_All[i][j]
+
+    # Print the individual number-wise errors along with the cumulative errors
+    # print("Individual number-wise errors and cumulative errors for all K and number of terms pairs:")
+    # for i in range(len(All_Ks)):
+    #     for j in range(len(NumberOfTermsTotal)):
+    #         print(f"K: {All_Ks[i]}, Number of Terms: {NumberOfTermsTotal[j]}")
+    #         print(f"  Cumulative Error: {cumulative_errors[i][j]}")
+    #         print(f"  Cumulative Error1: {cumulative_errors1[i][j]}")
+    #         print(f"  Cumulative Error2: {cumulative_errors2[i][j]}")
+    #         print('*******************************************************************************************************')
+
+    # Find the index of the minimum cumulative error
+    min_error_index = np.unravel_index(np.argmin(cumulative_errors), cumulative_errors.shape)
+    min_error_index1 = np.unravel_index(np.argmin(cumulative_errors1), cumulative_errors1.shape)
+    min_error_index2 = np.unravel_index(np.argmin(cumulative_errors2), cumulative_errors2.shape)
+
+    # Extract the K and number of terms that provide the minimum cumulative error
+    best_K = All_Ks[min_error_index[0]]
+    best_number_of_terms = NumberOfTermsTotal[min_error_index[1]]
+
+    best_K1 = All_Ks[min_error_index1[0]]
+    best_number_of_terms1 = NumberOfTermsTotal[min_error_index1[1]]
+
+    best_K2 = All_Ks[min_error_index2[0]]
+    best_number_of_terms2 = NumberOfTermsTotal[min_error_index2[1]]
+
+    # # Output the results
+    # print(f"\nThe K value that provides the least cumulative error is: {best_K}")
+    # print(f"The number of terms that provides the least cumulative error is: {best_number_of_terms}")
+    # print(f"The minimum cumulative error is: {cumulative_errors[min_error_index]}")
+
+    # print(f"\nThe K value that provides the least cumulative error1 is: {best_K1}")
+    # print(f"The number of terms that provides the least cumulative error1 is: {best_number_of_terms1}")
+    # print(f"The minimum cumulative error1 is: {cumulative_errors1[min_error_index1]}")
+
+    # print(f"\nThe K value that provides the least cumulative error2 is: {best_K2}")
+    # print(f"The number of terms that provides the least cumulative error2 is: {best_number_of_terms2}")
+    # print(f"The minimum cumulative error2 is: {cumulative_errors2[min_error_index2]}")
+
+    return best_K1, best_number_of_terms1
+
+
+def Step2(Normalized_value, Scale, Intercept, min_val_1, max_val_1, in_k, in_terms, normalized_list_normal, in_originalValues):
+
+    _r = lambda y: np.round(y, decimals=64)
+
+    All_Ks = []
+    NumberOfTermsTotal = []
+
+    All_Ks.append(in_k)
+    NumberOfTermsTotal.append(in_terms)
+
+
+    Normalized_value_ = Normalized_value - 1
+
+    errordiff_All = []
+    errordiff1_All = []
+    errordiff2_All = []
+
+    for K in All_Ks:
+        allEncryptedParams = getEncryptedValues(Normalized_value_, K)
+
+        errordiff_SameK = []
+        errordiff1_SameK = []
+        errordiff2_SameK = []
+
+        for NumberOfTerms in NumberOfTermsTotal:
+            EN_DenomInverse, NumberOfTermsRequired, errorDiff, errorDiff1, errorDiff2, errorDiff3, allInverses = DIV_HE(Normalized_value, NumberOfTerms, K, allEncryptedParams, normalized_list_normal, in_originalValues, Scale)
+
+            errordiff_SameK.append(errorDiff)
+            errordiff1_SameK.append(errorDiff1)
+            errordiff2_SameK.append(errorDiff2)
+
+        errordiff_All.append(errordiff_SameK)
+        errordiff1_All.append(errordiff1_SameK)
+        errordiff2_All.append(errordiff2_SameK)
+
+
+    ratio = ([(1.0 / org_val) / dec_val 
+                 for org_val, dec_val in zip(normalized_list_normal, allInverses)])
+
+    ratio_list = (np.array(ratio)).tolist()
+
+    # print(normalized_list_normal)
+    # print(allInverses)
+    # print(ratio_list)
+
+
+    return normalized_list_normal, errorDiff3
+
+
+
+def Step3(Diff_errors, normalized_Values, EN_normalized_Values):
+
+    _r = lambda y: np.round(y, decimals=64)
+
+    # print(Diff_errors)
+    # print(normalized_Values)
+
+    Diff_errors1 = [-x for x in Diff_errors]
+
+    Y = np.array(Diff_errors1)
+    X = np.array(normalized_Values)
+
+    degrees = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+    alpha = 1e-6
+
+    results = []
+
+    for degree in degrees:
+        # print(f'\n-------------------------------------------------- poly Fit (degree = {degree}, alpha = {alpha}) ---------------------------------------------------------------\n')
+        results.append(PolyFittingSelf(X, Y, degree, alpha, EN_normalized_Values))
+
+    # Find the degree and coefficients with the least MSE
+    best_fit = min(results, key=lambda x: x[2])
+
+    # print(f'\nBest fit degree: {best_fit[0]}')
+    # print('Coefficients:', best_fit[1])
+    # print('MSE:', best_fit[2])
+
+    return best_fit[0], best_fit[1]
+
+
+def Step4(Normalized_value, Scale, Intercept, min_val_1, max_val_1, in_k, in_terms, FinalBestPossibleCoeff, normalized_list_normal, in_originalValues):
+
+    _r = lambda y: np.round(y, decimals=64)
+
+    All_Ks = [.4, .5, .6, .7, .8, .9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 20, 25, 30, 35, 40, 50]
+
+    K = in_k
+
+    NumberOfTerms = in_terms
+
+    Normalized_value_ = Normalized_value - 1
+
+    allEncryptedParams = getEncryptedValues(Normalized_value_, K)
+
+    EN_DenomInverse, NumberOfTermsRequired, errorDiff, errorDiff1, errorDiff2, errorDiff3, allInverses = DIV_HE(Normalized_value, NumberOfTerms, K, allEncryptedParams, normalized_list_normal, in_originalValues, Scale)
+
+
+    ratio = ([(1.0 / org_val) / dec_val 
+                 for org_val, dec_val in zip(normalized_list_normal, allInverses)])
+
+    ratio_list = (np.array(ratio)).tolist()
+
+    # print(normalized_list_normal)
+    # print(allInverses)
+    # print(ratio_list)
+
+    total_errorCorrection_error = []
+
+    finalInverses = []
+
+    for K_correction in All_Ks:
+
+        allEncryptedParamsOfInverse = getEncryptedValues(Normalized_value, K_correction)
+
+        FinalInverse_error = ErrorCorrection(EN_DenomInverse, FinalBestPossibleCoeff, allEncryptedParamsOfInverse, K_correction)
+
+        final_inverse = EN_DenomInverse + FinalInverse_error
+
+        FinalInverse_decryted1  = HE.decryptFrac(final_inverse)
+        finalInverses = _r(FinalInverse_decryted1)
+
+        ratio = ([ pow(abs( 1.0 - ((1.0 / org_val) / dec_val)), 2) for org_val, dec_val in zip(in_originalValues, finalInverses)])
+
+        ratio_list = (np.array(ratio)).tolist()
+
+        total_errorCorrection_error.append(sum(ratio_list))
+
+    
+        for i in range(0,len(in_originalValues)):
+            
+            Original_value = in_originalValues[i]
+
+            Normalized_value_v = normalized_list_normal[i]
+
+            normalized_Inverse_Original = ((1.0)/Normalized_value_v)
+
+            normalized_inverse_CKKS = allInverses[i]
+
+            original_inverse_value = ((1.0)/Original_value)
+
+            ComputedInverse_value = finalInverses[i]
+
+            ErrorForNormalized = abs(normalized_Inverse_Original/normalized_inverse_CKKS)
+
+            ErrorForOriginalValue = abs(original_inverse_value/ComputedInverse_value)
+
+
+            # print("***********************************************************************")
+            
+            # print("K_Correction           : ", K_correction)
+
+            # print("Value of Input         : ", Original_value)
+
+            # print("Value of Norma Input   : ", Normalized_value_v)
+            
+            # print("Original Inverse of X' : ", normalized_Inverse_Original)
+            
+            # print("CKKS Inverse of X'     : ", normalized_inverse_CKKS)
+
+            # print("Error Original vs CKKS : ", ErrorForNormalized)
+
+            # print("Original Inverse       : ", original_inverse_value)
+            
+            # print("CKKS Inverse           : ", ComputedInverse_value)
+            
+            # print("Error Original vs CKKS : ", ErrorForOriginalValue)
+
+
+            # print("***********************************************************************")
+
+
+
+
+
+
+
+    min_error_index = np.argmin(total_errorCorrection_error)
+    best_K_correction = All_Ks[min_error_index]
+    min_error_value = total_errorCorrection_error[min_error_index]
+
+    # Print the sum of errors for each K_correction
+    # print("Sum of errors for each K:")
+    # for idx, k_value in enumerate(All_Ks):
+    #     print(f"K = {k_value}: Sum of Errors = {total_errorCorrection_error[idx]}")
+
+    # # Output the best K_correction
+    # print(f"\nBest K with the least error: K = {best_K_correction}, with Sum of Errors = {min_error_value}")
+
+
+    allEncryptedParamsOfInverse = getEncryptedValues(Normalized_value, best_K_correction)
+
+    FinalInverse_error = ErrorCorrection(EN_DenomInverse, FinalBestPossibleCoeff, allEncryptedParamsOfInverse, best_K_correction)
+
+    final_inverse = EN_DenomInverse + FinalInverse_error
+
+    FinalInverse_decryted1  = HE.decryptFrac(final_inverse)
+    finalInverses = _r(FinalInverse_decryted1)
+
+    finalInverses = finalInverses[:1000]
+
+    allOriginalInverses = [(1.0/x) for x in in_originalValues]
+
+    mse = np.mean((np.array(allOriginalInverses) - np.array(finalInverses)) ** 2)
+
+    ratio = ([(abs(( org_val/ dec_val))) for org_val, dec_val in zip(allOriginalInverses, finalInverses)])
+
+    print(ratio)
+
+    return best_K_correction, min_error_value, mse
+
+
+def SubMainFunction(Scale, Intercept, filename):
+
+
+    start_time = time.time()
+
+    min_val_1 = 35006.80871423211     #min(X1)
+    max_val_1 = 59528.978503317274      #max(X1)
+
+
+    X111111_1 = [35010.972989519694, 35029.68477610889, 35054.622298882205, 35057.205597803644, 35106.86714606647, 35110.79544925174, 35122.37168978042, 35122.42536926183, 35138.46602605497, 35162.28161907261, 35195.60277210778, 35203.028159500784, 35223.24536605377, 35229.80095474478, 35255.18192832475, 35274.78982385436, 35362.68138259047, 35375.97452609593, 35378.62380968058, 35388.63142849831, 35406.85791186446, 35425.202401163144, 35462.66847817599, 35470.49459830113, 35526.08569903715, 35556.73505856088, 35556.82916971202, 35628.42584635507, 35647.60619119535, 35652.3550996719, 35657.60086701283, 35694.03352164543, 35735.724921677436, 35792.95291091202, 35852.866054152924, 35859.52142681346, 35873.31859101638, 35921.91739504356, 35924.75229729772, 35990.57952282546, 36038.6459499977, 36055.537544363135, 36096.90736505006, 36130.3442644286, 36167.62494797325, 36171.4432989294, 36179.09062317948, 36191.17875054275, 36228.87617361154, 36237.68541991238, 36318.52647713344, 36320.17041544798, 36375.843307275776, 36416.21712015408, 36435.84724843649, 36436.032792733764, 36449.10956479978, 36473.12800956313, 36485.85405483767, 36494.19893957273, 36494.91140469062, 36507.22252750457, 36508.377285521296, 36509.63417283435, 36517.43229292516, 36520.46423416167, 36560.700534094256, 36599.082341857604, 36605.16232704164, 36639.1630305862, 36693.27760037752, 36695.21746764872, 36704.712141344826, 36721.268429150055, 36746.96476872515, 36751.299954450275, 36754.532290376694, 36836.13023820258, 36838.0321680917, 36852.912579610085, 36878.60997771688, 36890.59133436402, 36907.866833755004, 36918.33467797164, 36929.10544714837, 36964.47076655964, 36981.36835251548, 37075.79940872221, 37097.449117331285, 37130.955922679575, 37132.96616994126, 37166.44029031887, 37254.89576579084, 37272.46216850468, 37282.69662966387, 37294.08079197201, 37305.46841135222, 37325.55288697078, 37394.53088605527, 37407.03114153499, 37454.50221857289, 37475.71317406813, 37479.51179724988, 37484.960162674215, 37485.69016442917, 37485.89790982463, 37527.50836428407, 37543.9153047549, 37601.72205160181, 37617.851215625815, 37692.323968659046, 37716.373634955344, 37736.36545948088, 37765.422802234774, 37780.41080488125, 37833.685301794816, 37849.11157077624, 37883.85294993286, 37897.702012225745, 37918.54366248132, 37942.82528550216, 37961.08211314932, 37967.22494276105, 38022.639553715846, 38023.27253944615, 38034.42920099085, 38067.2378439143, 38125.16995793184, 38215.63965041356, 38216.503075805835, 38233.80689494229, 38234.8014477215, 38257.08978277085, 38276.01893889226, 38292.78591740373, 38312.317998583225, 38318.26875246106, 38324.914785562476, 38337.76455424949, 38404.00412834394, 38408.65788247668, 38454.63407864164, 38464.570794172796, 38508.65396827189, 38526.63866958638, 38530.97200854424, 38552.00373146512, 38570.049510826284, 38578.28610063281, 38607.31840325601, 38637.94776256063, 38670.680833279046, 38680.57151138273, 38686.87934110287, 38732.88896001205, 38757.95677685373, 38891.48503417541, 38911.40415279752, 39008.10075415771, 39015.30383164864, 39025.92777043375, 39032.55986990323, 39117.54036803711, 39156.453388789145, 39174.960541666034, 39177.960263056375, 39193.802655469124, 39220.456611551235, 39251.328947716356, 39276.434022977446, 39324.96245224991, 39358.94563843976, 39365.8423540805, 39419.02968768259, 39425.14310116187, 39437.177223628314, 39504.166904927064, 39505.04936034713, 39542.96636122983, 39543.37163603646, 39561.7851627382, 39584.39578530902, 39605.42856194382, 39650.02643948312, 39745.68429171335, 39748.01543680753, 39775.061896845575, 39785.64173485357, 39816.40528296133, 39830.10212200398, 39832.94257674522, 39842.83882398688, 39845.52113631846, 39863.43188611356, 39906.48226677172, 39935.68040612607, 39967.945048259666, 39982.52008306838, 40015.91578621359, 40016.90452064587, 40021.8046844808, 40031.55959410099, 40069.52637970558, 40082.32552992771, 40129.1397367547, 40131.67116938992, 40153.00230576388, 40309.23423748076, 40314.11534028359, 40326.541288713306, 40367.593805403565, 40390.013891339484, 40474.508105675995, 40518.670294898024, 40534.935634914655, 40588.91799296729, 40596.56334241165, 40690.90667550907, 40695.01823501461, 40703.91194604406, 40722.57835888001, 40750.76395187044, 40763.87000937504, 40780.134379027, 40787.137124870904, 40796.796658141386, 40845.282968808606, 40862.10098676307, 40900.42156425709, 40926.106480560324, 41012.08177684342, 41032.60047393565, 41047.81042568982, 41080.120505982566, 41092.64097470375, 41109.58492410161, 41111.112113628966, 41119.77487464, 41126.739138216566, 41145.760853207736, 41147.50353639516, 41170.9793276998, 41212.62904292743, 41213.90237116868, 41238.39110191004, 41261.00380451221, 41270.20938632691, 41276.74765242898, 41304.33094690607, 41309.1182809221, 41315.30399613248, 41324.35247221243, 41381.51368950254, 41449.002037263985, 41484.01730562294, 41484.81588504337, 41514.810330778135, 41519.13630193827, 41519.62748159764, 41601.27486518356, 41676.87672152118, 41679.866602672184, 41680.98400990643, 41717.190826887614, 41742.30461316466, 41746.087561117, 41829.62754682663, 41837.605062372175, 41906.01873672863, 41942.22399794416, 41954.64345521774, 42052.92170491385, 42108.08347945477, 42125.37589729182, 42159.02703457725, 42160.82754402508, 42162.88443070397, 42184.09406666287, 42191.03175122629, 42193.4332140637, 42195.73468252623, 42209.325163067864, 42218.34136025415, 42224.92104970612, 42242.036280524844, 42248.47501319694, 42249.86455782608, 42258.472257392685, 42259.29860988816, 42267.1995718836, 42340.12511195216, 42348.01579151362, 42398.116143823536, 42428.720112343944, 42467.75645460101, 42494.83487785708, 42543.939610281486, 42586.51229195861, 42592.680739467345, 42620.502370638045, 42642.17545367659, 42642.49736659144, 42709.10723112038, 42738.238088787584, 42749.96225183685, 42757.91233220062, 42763.8206994779, 42795.620013176514, 42818.71248092741, 42844.110267821925, 42870.15219861732, 42889.24206133019, 42941.40502972492, 43030.2524451731, 43048.41262921195, 43084.86701336304, 43104.11836352645, 43126.776683964825, 43130.238791278425, 43135.0103592649, 43146.4298522299, 43151.965252202455, 43160.08667172873, 43168.85034315455, 43171.54219140487, 43174.4332191424, 43197.002113893774, 43216.670685549296, 43225.13374250344, 43229.43296164011, 43238.55127290666, 43317.53572078193, 43350.316240011096, 43354.3243066531, 43362.95117071252, 43363.354099491255, 43443.39296683457, 43452.16059120903, 43464.91851580026, 43530.88168768446, 43544.82028984382, 43552.7806137024, 43570.97336145153, 43595.08651406801, 43661.86928112607, 43698.74819921666, 43729.52561947319, 43773.67358010018, 43796.08975541919, 43800.36782108543, 43850.27065456078, 43859.722549445476, 43861.16322092341, 43943.77064471409, 43951.09861493609, 43977.43999994949, 43989.849863172436, 43992.32089337147, 43993.70324287806, 44008.11551480345, 44026.859643384596, 44059.109501362465, 44106.953087392845, 44124.08979854295, 44157.45474137729, 44158.59133687105, 44183.86182667511, 44189.04121801512, 44189.81289870634, 44224.452149467514, 44231.00635566856, 44268.94129941193, 44285.559434198134, 44285.665574164304, 44297.89917009368, 44366.894406701045, 44379.2381368137, 44398.42346987484, 44424.83877718685, 44428.51666755263, 44452.472934889855, 44457.3114042047, 44457.51615726599, 44463.12219827034, 44467.15173963532, 44473.379486032616, 44479.30487080634, 44498.72836826343, 44499.73639298575, 44519.2206130247, 44519.781738594174, 44543.321963672926, 44566.53279568104, 44638.56102485907, 44667.07545998477, 44698.42221816044, 44707.87135692455, 44711.724057670246, 44746.35542951058, 44750.438029817204, 44804.360816957844, 44815.51607764709, 44828.3995399372, 44837.784104150196, 44897.30075502844, 44920.44964016969, 44973.108431726025, 44981.18245454087, 44996.73532121577, 44998.4296143354, 44999.6612213561, 45028.09702635295, 45036.76330972137, 45064.13509946405, 45099.26809461914, 45100.13644299977, 45105.268177735095, 45147.127751415144, 45160.44641127685, 45186.93873911832, 45212.90782346869, 45219.46288458015, 45224.37432682715, 45325.47320080515, 45326.605139482366, 45361.170044173945, 45362.64342782102, 45398.56548965169, 45409.505593537586, 45422.91490114333, 45436.71797961931, 45442.342896038346, 45482.35207766477, 45488.947683198254, 45536.7143557832, 45545.003592082634, 45571.31380374837, 45606.63388371387, 45623.238624701866, 45686.10088644689, 45692.7340150379, 45696.48662269942, 45709.77554631331, 45764.509547140864, 45790.7263482514, 45794.77996970476, 45798.846571094524, 45819.801589526396, 45821.09601331075, 45848.48237071183, 45892.08298854368, 45967.37803771242, 45993.301248800526, 46004.74019503026, 46006.3386526597, 46068.38831089993, 46110.84093262869, 46151.78786240526, 46154.65419548018, 46157.13922895443, 46165.728767050256, 46188.18308014732, 46197.45275138163, 46227.05761659234, 46254.877906471054, 46255.83083317283, 46258.3216174067, 46261.266004859295, 46263.9338812084, 46303.500752626955, 46315.620399760475, 46341.120316355686, 46378.925358893706, 46378.94171003201, 46418.23210247728, 46423.81234881219, 46437.99939995571, 46442.188655356644, 46450.04691575217, 46511.751941792, 46571.172086141014, 46607.67080932953, 46623.432764168494, 46636.04382954322, 46645.886619914454, 46652.951675568955, 46658.78990363465, 46690.41322472567, 46745.311012469116, 46782.8794310122, 46813.668179934655, 46815.82365421341, 46817.44769270585, 46889.43204885696, 46909.423259370014, 46915.45993899912, 46928.31439520631, 46932.2559032544, 46962.67957342589, 46984.402377719685, 47062.11263415744, 47104.74954026278, 47164.15546844747, 47194.67781761251, 47196.97903359207, 47236.87765982686, 47279.028496819505, 47300.01926126795, 47321.7770252603, 47331.12189063469, 47335.03657139533, 47399.92154692954, 47407.20174557218, 47486.521807549136, 47487.350455756714, 47507.08994374516, 47512.21138471113, 47513.914488075476, 47599.77299815611, 47607.46762151825, 47642.074976994445, 47653.260613545615, 47656.17909575945, 47673.118099572726, 47720.28278869772, 47728.94005519022, 47779.70626145944, 47805.05893325171, 47825.346359648116, 47827.19606545654, 47840.00743185465, 47970.800241257675, 47973.199158244475, 47979.33038315677, 48034.367949720356, 48112.46064180907, 48119.74328671078, 48176.79822300112, 48202.92420177255, 48255.52128150985, 48256.582909123164, 48266.75590732368, 48267.52630178201, 48268.88681487006, 48307.84771097197, 48400.16114355564, 48410.58562699007, 48425.68147669645, 48430.861751728095, 48461.565018007954, 48465.34132627213, 48523.73036844826, 48528.87130430789, 48549.64638608432, 48587.0220718801, 48590.78845796326, 48626.631128329274, 48691.28230442705, 48697.74955465993, 48721.61648723032, 48749.60992549459, 48750.65429840276, 48766.881980445636, 48777.11407747488, 48809.72999516978, 48828.51266134509, 48840.02309635115, 48862.71516218762, 48871.91915786094, 48873.97284822722, 48883.97795306233, 48887.1513918007, 48888.84512892152, 48909.281460210084, 48958.70111298617, 49054.27949267253, 49063.81750993077, 49090.228650466306, 49107.240899737364, 49148.84582950496, 49159.04372879719, 49189.76899777734, 49221.7680464676, 49240.1754876527, 49278.28545609503, 49289.80969398511, 49318.79666111499, 49354.304272029534, 49373.732247695065, 49415.24806998065, 49427.873403601145, 49487.66342877948, 49490.90402568404, 49509.63320908635, 49512.8828436792, 49549.35210498558, 49568.24369320864, 49616.176492794104, 49632.15701501921, 49669.174162408766, 49689.428851478464, 49696.3028380015, 49706.08350737275, 49725.09323972781, 49730.426968014064, 49750.181398205445, 49755.62323994316, 49757.7375710143, 49776.63066490213, 49788.02724516245, 49859.04731981625, 49910.17611622447, 49931.25547421193, 49943.177063807765, 50052.30633168517, 50090.426102259975, 50147.02286069658, 50167.08829462999, 50178.20514871102, 50222.91960382783, 50271.92604499213, 50273.01030561319, 50280.023649609, 50312.889212545255, 50324.330027292206, 50356.47662380207, 50386.0627671787, 50400.23332030588, 50418.23288742095, 50418.2964852395, 50429.55484874293, 50433.7650169164, 50474.410087363955, 50482.37328921399, 50487.796350670484, 50514.092133143815, 50516.74656590526, 50539.02050523499, 50557.5693465898, 50557.57348694153, 50580.95210104467, 50582.66442133211, 50644.184513576474, 50648.92985173792, 50660.802793010385, 50696.39914788085, 50698.75411293399, 50732.5676271689, 50746.5398766779, 50861.35624571757, 50862.62273687686, 50889.80269620247, 50894.90074097165, 50898.92744678314, 50914.85208139241, 50917.320920223545, 50922.05968421704, 50959.06950587464, 51034.88523965836, 51059.98108290666, 51102.34595369302, 51113.43961192915, 51149.79973916586, 51162.008501685494, 51257.50247367189, 51258.73920812167, 51263.66530970895, 51268.12650803674, 51273.157535574646, 51297.23429722633, 51300.524876579984, 51349.96110234354, 51360.44291738108, 51364.81481343351, 51367.2760402681, 51373.745498114215, 51391.847026310075, 51397.274864176274, 51411.29117444485, 51427.94584962734, 51443.15641251945, 51499.57221073383, 51501.906957507344, 51556.225930810935, 51621.78141516472, 51624.833470201316, 51643.18400842281, 51652.196713699304, 51666.341208901096, 51693.107605359895, 51707.563865876684, 51717.201381520164, 51718.91722746861, 51760.564711088125, 51764.43193682873, 51770.75417150109, 51786.932059004044, 51800.618333907376, 51813.22569663982, 51841.52822271266, 51847.73754153021, 51874.72300430451, 51893.2942046417, 51979.64360252791, 51999.755232418545, 52053.17777875914, 52073.848239824336, 52124.904450049, 52145.262860022005, 52191.08033857195, 52197.26316753311, 52207.02410869895, 52247.645668208905, 52264.01101962116, 52274.6593793821, 52299.68405641082, 52352.87925847147, 52379.94695788031, 52413.622786450855, 52420.78094570086, 52509.47157137259, 52526.08495849457, 52565.10667711099, 52567.26275264887, 52575.171521451666, 52615.30866322486, 52618.52124084861, 52703.38615061826, 52703.39708542809, 52751.079695791486, 52785.835493225284, 52843.307014081896, 52867.35343482076, 52910.261463850096, 52933.741380080435, 53020.847766880164, 53036.80325761694, 53108.919956595746, 53137.33600253095, 53209.96067949681, 53228.13463165866, 53229.27938270582, 53249.91843836327, 53256.39264275863, 53260.22306710767, 53267.3044188099, 53300.00712770982, 53300.788263514565, 53304.22011853596, 53323.31904657079, 53373.433223266926, 53379.30968449556, 53392.00805023237, 53397.53742046737, 53416.750311874035, 53437.255299796925, 53440.43827684346, 53454.45864138998, 53470.371781036534, 53478.85029609605, 53486.59890079497, 53505.14038564802, 53523.67376697459, 53548.21438246267, 53550.197594441466, 53576.56502981097, 53605.57413005286, 53611.43461610582, 53622.4093234011, 53623.23738217549, 53655.27503228757, 53748.207764403, 53764.849094453326, 53767.63475361382, 53768.81041072859, 53771.13987530037, 53771.38062521714, 53799.014003655444, 53813.76998797062, 53829.41551905627, 53855.62661364705, 53888.40936611544, 53909.38005181242, 53945.583636340234, 54004.46410829137, 54026.375133077134, 54029.45321240855, 54038.18106483351, 54051.558254444026, 54051.68080478604, 54060.86352363377, 54095.946473676675, 54283.980146148926, 54302.82465598066, 54353.9560604321, 54354.994089351974, 54370.25789769074, 54376.40758413236, 54382.85355853576, 54482.56886581968, 54520.63532906691, 54522.27996174687, 54526.60649890352, 54546.37738833963, 54557.40150701198, 54587.7478059494, 54592.116689330534, 54595.387126383604, 54617.074292556834, 54620.21105687891, 54627.48353876264, 54662.65246730446, 54714.441859278995, 54730.717425679795, 54776.384343347905, 54834.51707088528, 54849.87013744745, 54882.40024628704, 54931.88428724042, 54994.67823542481, 55011.47870157877, 55024.400457007956, 55032.712303763525, 55079.24863854454, 55102.638996809146, 55143.72117056282, 55187.64564491276, 55252.858897460756, 55264.02261998593, 55274.51277314838, 55292.41108072424, 55333.00658539808, 55362.61358302948, 55363.32642739973, 55366.63453230375, 55375.294040269655, 55391.276277871366, 55425.23621095586, 55429.40518541813, 55457.05442148259, 55493.24766582166, 55499.63400142837, 55501.47799105462, 55509.14363542166, 55569.60113633425, 55580.208042476814, 55624.794143542786, 55634.40832697479, 55637.86221257547, 55642.36458313963, 55669.86059681009, 55692.07203270766, 55701.14562609651, 55769.486720203015, 55779.25409232878, 55805.10580550875, 55864.36285699243, 55922.185796698584, 55929.58195176194, 55935.501582637735, 55984.436964170454, 56008.8925251945, 56010.03535805315, 56032.98000534097, 56052.25105031353, 56097.16527185503, 56120.309739947385, 56186.21653580313, 56206.57940631723, 56278.31433479386, 56306.40866912584, 56316.70764682739, 56330.43892404758, 56341.22512773356, 56374.84949798594, 56386.54504879426, 56390.27947570067, 56391.454132427534, 56407.54247006685, 56430.700611332824, 56430.72984880036, 56434.80982452778, 56477.78294359059, 56525.50759687953, 56555.8737895665, 56563.26105392361, 56578.584070116136, 56579.45177855777, 56592.61486311312, 56643.672105728416, 56671.27304175995, 56732.43603397778, 56738.67459228847, 56788.99598137178, 56855.79239843041, 56894.716332690106, 56899.43482714145, 56909.65220131428, 56946.844445285446, 56970.645662487805, 56974.06329863229, 56985.76480175044, 56988.748215047526, 57030.444635233594, 57069.91026533427, 57071.36340039683, 57075.36740057463, 57077.463879070885, 57138.42603245816, 57143.108758766844, 57144.71364229161, 57166.0612072645, 57214.98552318002, 57230.13852941923, 57243.98493130537, 57268.726875659355, 57306.64273273965, 57316.82190135468, 57320.14963604175, 57324.20210765593, 57336.66624026479, 57343.02304154745, 57378.522443275826, 57441.549488325225, 57540.55802212941, 57596.48627917794, 57631.328011303325, 57632.80795172499, 57651.63985298109, 57671.404464908686, 57674.44935521019, 57721.65286842394, 57723.55376702494, 57784.868625285686, 57795.11141686593, 57801.267741487, 57815.573922983094, 57845.849141464045, 57889.219432107915, 57982.7290788164, 57987.255494329016, 58040.621894156866, 58042.45073222098, 58060.8887655634, 58062.66438336484, 58069.96079401957, 58075.41252167201, 58124.52120618865, 58141.17901946408, 58143.2620512217, 58183.62534771736, 58212.71371965697, 58257.25605500083, 58276.73626068665, 58324.255447720374, 58373.69788033489, 58382.63417173088, 58477.88950367555, 58534.200671071274, 58558.00236550496, 58558.22902690135, 58585.590975736966, 58635.62095072308, 58650.34279918407, 58677.543506239155, 58708.49825936571, 58754.260611807375, 58768.2673523487, 58784.78944277257, 58798.39733636947, 58801.05531629379, 58817.86947472804, 58835.84912772263, 58840.63216091243, 58944.416983727606, 58991.13106398632, 59027.7119739792, 59037.15326442026, 59078.76276236786, 59101.70043359861, 59121.50184387392, 59123.782498398185, 59124.89679674481, 59181.84450664894, 59184.90110694102, 59226.35829452421, 59230.11702327814, 59234.937997279645, 59253.32818842357, 59281.45003012505, 59290.66449425576, 59291.46224051391, 59293.64522557421, 59317.46657547576, 59421.095555731285, 59436.34923800557, 59437.73088735355, 59474.0945676632, 59480.57389713832, 59507.323273254966]
+
+    min_val_1 *= 0.95
+    max_val_1 /= 0.95
+
+    if(max_val_1 > 99999):
+        max_val_1 = 99999
+
+
+    normalized_list = []
+
+    for value in X111111_1:
+        Normalized_value_normal = (Scale * (value - min_val_1) / (max_val_1 - min_val_1)) + Intercept
+        normalized_list.append(Normalized_value_normal)
+
+
+    Price1 = normalized_list
+    Price2 = np.array(Price1, dtype=np.float64)
+    Price3 = HE.encodeFrac(Price2)
+    Normalized_value = HE.encryptPtxt(Price3)
+
+    # print('*************************************** Step 1 Start *****************************************')
+
+    bestK, bestNumberOfTerms = Step1(Normalized_value, Scale, Intercept, min_val_1, max_val_1, normalized_list, X111111_1)
+
+    # print('*************************************** Step 1 End *****************************************')
+
+    # random_floats = list(np.random.uniform(min_val_1, max_val_1, 70))
+    # X111111_1 = sorted(random_floats)
+
+    X111111_1 = [35037.30501329893, 35066.62629874813, 35082.08484542822, 35101.23033115007, 35143.12164752528, 35147.433413286795, 35194.1006663578, 35227.495281778014, 35235.5578234964, 35261.696247527776, 35277.45641562097, 35284.54119162338, 35354.633730606394, 35416.032304717606, 35436.13505229878, 35463.377506546596, 35499.069545711274, 35506.92494472939, 35533.92841706115, 35537.784666685926, 35584.53763100689, 35633.3445621555, 35639.4218563585, 35699.64037035005, 35719.78970513654, 35762.533092197125, 35770.926083138525, 35852.15356249537, 35855.46618501422, 35857.541861483776, 35872.09796730738, 35914.49267861236, 35923.22922932573, 35932.64873943086, 35947.51742520119, 35959.96939601405, 35964.71864732836, 35966.26790560487, 35968.3373047749, 35983.98854337207, 35988.04947231036, 35990.23765882789, 36007.40199708678, 36042.3632037676, 36073.31842891726, 36093.69838864103, 36098.36305443157, 36106.36904907621, 36106.76409225221, 36135.508230162864, 36150.48435241414, 36163.81528997302, 36164.109471514814, 36180.90783836584, 36216.95328246676, 36282.476541137396, 36300.48920538949, 36334.145014026006, 36353.30610672106, 36374.459568392675, 36419.824277028514, 36435.39455483106, 36455.757200947846, 36489.843041087304, 36524.46008184783, 36530.79565437462, 36536.27142160721, 36536.80048675755, 36616.857400298555, 36629.47322647169, 36634.05168958428, 36644.25843954513, 36671.690552721884, 36673.19858854614, 36676.938385075206, 36764.83092869416, 36804.99028991361, 36851.99122453751, 36859.2376424185, 36877.411991286484, 36884.140878003316, 36884.33792804087, 36897.417550333834, 36900.56178408667, 36936.67199486612, 36944.409327993846, 36948.26741396806, 36974.50166937031, 37003.74240471884, 37012.124843216625, 37079.67528559973, 37098.32241823382, 37114.66802630787, 37117.803472448875, 37162.16242397604, 37163.811808968094, 37171.33718953701, 37178.28073195451, 37203.96175788175, 37231.89790855017, 37232.23286871031, 37282.39056921434, 37315.95050529758, 37323.3989444641, 37390.921997739075, 37400.5253700676, 37400.88962404228, 37407.85466932648, 37407.969811419396, 37430.50577304108, 37466.00463378801, 37482.04560861646, 37526.54634942779, 37579.32899517637, 37611.5621672921, 37626.939079368036, 37647.29504882474, 37655.837279706044, 37723.28546170841, 37724.89415004639, 37749.326758632196, 37770.97614984561, 37783.39268818427, 37831.184958972364, 37866.47618537973, 37906.90649928173, 37971.894024629866, 37981.172611742324, 37982.584485857726, 37990.62772327908, 38028.13686449287, 38045.31656129198, 38129.4664663803, 38261.86766071116, 38266.48943990231, 38298.22856934912, 38310.297491450234, 38331.109037917035, 38346.7296925752, 38352.289830124915, 38360.54057238501, 38363.72040984458, 38374.163485685196, 38390.3745783989, 38425.7852616085, 38492.34550260759, 38537.12559620276, 38547.479443634424, 38563.235886848124, 38564.084968186, 38570.1411582305, 38583.80836164445, 38586.35770489928, 38600.223081568896, 38621.06026029782, 38649.54265342997, 38652.53657166625, 38654.9910623272, 38728.30259304804, 38764.92279004579, 38795.0756852111, 38800.433451891266, 38816.953559771995, 38819.14129078323, 38836.248908033136, 38860.58214056238, 38873.97445963532, 38874.23090359448, 38877.15859360711, 38891.62671278982, 38903.40985961115, 38906.84979879002, 38964.45408858201, 39008.596181932095, 39035.05545649508, 39089.57603632813, 39135.55404010331, 39155.74394694235, 39195.48728364506, 39206.02154278781, 39223.04967008796, 39243.64335006982, 39282.03413951421, 39286.69419894686, 39308.57976614079, 39376.72730470503, 39386.87894538336, 39390.83273024935, 39421.46946523986, 39448.55894285861, 39534.015095172166, 39542.12362642691, 39557.19281504405, 39574.78779200673, 39592.43182462731, 39658.71542568874, 39682.36823492349, 39779.57081155523, 39788.675329596714, 39794.46317355326, 39806.03582001979, 39813.4703911542, 39851.76191664045, 39875.264841279524, 39881.585121434546, 39883.52992358057, 39904.56534823026, 39943.30408565969, 39960.4659017734, 39965.87663881454, 39978.37526590194, 39995.5647519456, 40000.55351240853, 40014.348677035276, 40043.64383427377, 40043.91194391884, 40067.2544552236, 40085.88181979152, 40086.72857913587, 40118.240546938956, 40160.31600241627, 40166.16580435035, 40168.23384824974, 40171.89166344304, 40226.150412095594, 40230.73093450556, 40252.661549724064, 40283.95088224187, 40315.22381159726, 40338.265140601005, 40358.46045735368, 40416.03597303099, 40433.22325548357, 40435.24463674087, 40488.392824972856, 40561.947542493996, 40614.708493813705, 40658.21547109445, 40661.425650073, 40673.81720012806, 40694.37013995786, 40695.73621439129, 40710.089095924624, 40711.86950613727, 40739.39150023385, 40743.490891295325, 40785.445930882415, 40801.34247107959, 40824.47041516283, 40832.83289595944, 40854.93203299303, 40877.71516307252, 40886.544775504095, 40929.696796866294, 40943.962151633976, 40974.94160218171, 40977.2323699497, 41006.48606922544, 41015.136729014455, 41048.42567129355, 41078.00221745552, 41136.91958808867, 41146.19545449376, 41158.36871129753, 41211.24470336693, 41345.01874292549, 41420.32677994389, 41423.07321585763, 41438.02966285614, 41500.90901707365, 41601.44383587207, 41611.17984880975, 41628.20447478607, 41635.4878766797, 41654.16407146922, 41723.255867495296, 41743.72182172775, 41781.96465118141, 41858.3684204172, 41890.103351769634, 41937.46811650815, 41992.48688443671, 42000.72058681798, 42038.396588513504, 42043.26958681819, 42057.2830892619, 42061.51468367703, 42121.41089690445, 42130.80571717411, 42150.212162659845, 42269.79524090646, 42285.280837031816, 42298.36467637782, 42299.597650162556, 42310.896584838156, 42362.685078296265, 42376.10116451491, 42393.97016144256, 42422.33341378564, 42541.2878606433, 42596.34890652472, 42611.23235054399, 42618.984525029686, 42662.50476992008, 42682.119922950005, 42715.70552828944, 42756.828292531034, 42777.904186156884, 42812.22643273284, 42820.104457439906, 42831.54041225574, 42841.21094789807, 42852.57896328048, 42863.856558536936, 42876.94484756982, 42912.97400140349, 42937.179817877724, 42957.315863806085, 42982.41687356852, 42995.30508406392, 43017.309624637135, 43020.52846976798, 43022.786350076225, 43030.17500683077, 43032.28735641923, 43032.824591957906, 43045.05207665727, 43050.71044455511, 43071.890804233626, 43088.42057638966, 43090.37316565351, 43121.956761248206, 43173.09159768229, 43208.6227120336, 43287.79604417423, 43331.48066960975, 43357.77255550104, 43365.519996572846, 43391.45252687753, 43437.74871899737, 43443.6921952906, 43446.195182522104, 43462.60423683715, 43467.969768505485, 43493.66696886247, 43523.79316671707, 43588.99022335801, 43601.397898466894, 43602.55635545763, 43607.78552219808, 43646.72996652124, 43663.473506809285, 43698.19308267987, 43709.78717524367, 43741.8553277301, 43758.5147993597, 43795.92912699531, 43796.10287307917, 43825.13869671267, 43825.29466313158, 43855.29033922482, 43856.23833832971, 43889.15074828416, 43947.123618183796, 43971.96766122291, 43992.07377178097, 44072.48651094843, 44075.912900689436, 44082.3845540286, 44095.751433920654, 44103.48912011764, 44135.202213098506, 44180.344286658496, 44181.83885164579, 44203.10688851622, 44205.639700858854, 44218.80089014673, 44231.50613091731, 44258.23524389496, 44259.03834685326, 44277.14957160902, 44321.97900904432, 44345.80881000218, 44358.55048931529, 44359.79245348439, 44380.34436416675, 44380.380107059515, 44384.53903259938, 44412.815042967704, 44421.9479917901, 44476.1870867994, 44506.34623466631, 44512.5366540209, 44513.742066322375, 44523.47579098657, 44525.71878236976, 44547.06327835357, 44605.5098710993, 44615.220382825726, 44660.544271956176, 44660.80828982104, 44678.29115738866, 44691.6013168503, 44706.241036326406, 44724.20443962675, 44759.59971628427, 44801.10374243358, 44832.10401870885, 44855.07134619238, 44864.12155976918, 44880.33648156714, 44895.69243475645, 44905.7064046998, 44913.26780200759, 44970.99791452977, 45029.20447700646, 45043.43645588449, 45093.07267919005, 45100.954516685386, 45104.34014924008, 45115.56593026919, 45163.40755849086, 45182.01971136539, 45184.65953883676, 45189.11716678929, 45196.610651627314, 45213.027778245865, 45221.77223066771, 45233.572066789035, 45254.933972678264, 45257.081012553, 45277.326337003164, 45300.826389811285, 45355.67472263429, 45361.183788240465, 45372.54121264374, 45416.11970653149, 45462.43516597554, 45490.516754583645, 45556.344232501535, 45567.95024017886, 45580.37417479989, 45588.314399929695, 45592.21255389352, 45593.70851450072, 45594.72233583518, 45611.61856397279, 45652.56725965129, 45668.79989542597, 45692.86029020544, 45694.67168327722, 45734.8298628839, 45770.18621000274, 45776.62584385825, 45778.75320434132, 45781.135735842996, 45785.04197178025, 45792.59525092333, 45821.402709794515, 45866.3382762452, 45874.02260625528, 45896.88144916383, 45958.146143213635, 45985.381232988664, 46015.84896173327, 46059.06687261204, 46069.37061035717, 46082.50851170175, 46096.27646753026, 46112.310496460115, 46141.11463796561, 46177.69646036602, 46195.83011822121, 46293.2564996429, 46315.12938961602, 46327.44064172867, 46333.31492588554, 46351.85451588988, 46475.7088729412, 46495.961057956054, 46501.406180424776, 46564.62309287272, 46569.873934175994, 46575.2529888372, 46578.087512195045, 46588.9773691897, 46639.92635974603, 46724.534293155884, 46746.64767224333, 46757.08979122794, 46835.6468502912, 46865.084079284454, 46957.882749803, 46962.65558041196, 46982.30265700345, 46992.96589028395, 46993.62750335712, 47021.562617502845, 47063.191565144036, 47070.33648385149, 47120.867335454415, 47155.51306775096, 47270.49859033761, 47312.78124974982, 47318.28289704719, 47321.15547861125, 47342.30752094272, 47349.994970210806, 47434.97445496264, 47477.40352380958, 47485.856517552726, 47492.86831053643, 47524.90327908634, 47539.14950365158, 47541.38858200638, 47564.5515116, 47630.38466199541, 47643.42261212235, 47647.175495255586, 47650.99346005873, 47657.793316740936, 47669.14181261838, 47726.745279111725, 47729.17462134872, 47735.57797995155, 47751.849838903654, 47809.98194490588, 47810.48434665569, 47830.05677283228, 47889.41801089161, 47938.91326169877, 47957.74391069528, 48005.852882882726, 48017.24953275069, 48027.28915624574, 48057.57252489583, 48115.5657535379, 48117.885013091945, 48122.3668107589, 48127.72515580454, 48206.645216725105, 48214.54217573793, 48220.108330259725, 48235.338259267446, 48240.82394915325, 48262.263483772156, 48317.70690178475, 48371.245434789955, 48411.721035226175, 48423.20423036372, 48424.49727830241, 48468.82446818137, 48469.220358624785, 48469.99526790057, 48539.783579572075, 48551.93457561264, 48579.08471671138, 48596.95146553076, 48608.44149095191, 48627.3646598755, 48662.96037021633, 48713.31717002056, 48725.00425046668, 48741.097088332805, 48752.972056389684, 48774.400558586836, 48778.31608835486, 48833.30253843023, 48849.50855331935, 48918.924117771334, 48932.61192388814, 48982.312321294245, 49083.29512241123, 49096.51279523365, 49118.50640366006, 49157.095481431475, 49162.72175482263, 49162.978612330226, 49181.625448620165, 49216.19418654975, 49221.26638350806, 49279.30823085594, 49318.23763302585, 49351.712493324565, 49354.93655727629, 49424.82890439122, 49465.91349120691, 49483.261605605265, 49522.51590040329, 49554.31091450538, 49562.74407671442, 49647.416436729734, 49727.39153418145, 49765.886103979276, 49767.0485811504, 49817.41877170665, 49838.883155886135, 49873.32479561234, 49912.56420609577, 49914.312851472, 49920.54751573641, 49938.645846810265, 49958.20463384474, 50070.54172939551, 50077.07892125864, 50077.51565708149, 50093.911301565764, 50096.480254101276, 50106.332618308275, 50133.334024026415, 50153.36721627289, 50178.72493218499, 50179.03465919097, 50259.05528116813, 50277.125642920655, 50292.74627816235, 50309.05288537814, 50344.04350384616, 50362.34651157561, 50365.497987901326, 50376.845787928636, 50412.22838711373, 50414.186070887605, 50468.220875746185, 50469.44320396614, 50482.62047353331, 50494.76135962048, 50506.315532256056, 50569.5711227907, 50587.181594969006, 50604.518557050396, 50634.573999704, 50650.195193381194, 50656.4424093678, 50671.03697770489, 50714.9812178486, 50725.35974562637, 50740.74622950086, 50758.61669802229, 50778.391412773206, 50819.44975473764, 50860.72607466641, 50871.77750739107, 50875.67435117313, 50877.76400332842, 50897.044809365565, 50897.9302097249, 50910.677283966004, 50910.712651076086, 50937.41832205873, 50950.729234222046, 51034.67838554605, 51036.57682262357, 51074.31787167385, 51078.42146814117, 51089.1924874496, 51099.63337690184, 51101.59832593376, 51112.253331473876, 51118.13732640951, 51160.66026087466, 51186.785721969325, 51208.839542372836, 51229.70462370322, 51252.42611128689, 51396.70908828998, 51419.211971164754, 51461.41323458536, 51517.18091936628, 51640.81546117412, 51681.53900759088, 51701.39996031494, 51701.610548150886, 51744.44433131468, 51752.16952584016, 51816.31152282734, 51825.81774680139, 51862.74303010272, 51890.33083540265, 51933.95794716448, 51948.007328245716, 51956.045349948094, 51964.90641233821, 51971.032375052964, 51986.489280770125, 52018.288737013616, 52026.188501770994, 52081.916704539486, 52088.0593324909, 52148.744552165794, 52151.24791629143, 52174.883602717775, 52220.33484932766, 52245.23094071545, 52256.16852638459, 52279.58568629335, 52287.93259391746, 52346.52112474793, 52350.46523709267, 52360.12770521109, 52363.46583491929, 52393.96339722446, 52475.529594516316, 52479.69490247159, 52488.08994879926, 52489.006572730745, 52489.81823623477, 52497.45849091983, 52523.197529891084, 52531.933890649, 52558.738770186814, 52664.184779046525, 52711.68679193386, 52790.61216316468, 52816.142915830926, 52843.931638199356, 52863.3267567835, 52866.275062043525, 52904.02322823748, 52904.13641930592, 52936.188793438545, 52948.19826726348, 52976.763528788586, 52978.21115916289, 52980.63094635054, 52983.89314956245, 52993.71334491493, 53019.21585729394, 53019.31162971566, 53042.94855722766, 53047.80478555642, 53080.74272464057, 53102.77424749883, 53135.038869765754, 53137.287474368444, 53154.32759408954, 53186.30314451801, 53188.94218764313, 53207.46124201987, 53254.66039778679, 53261.5520584055, 53284.088853769936, 53293.41058742274, 53305.08890981117, 53336.456000907776, 53365.24844733799, 53404.27704487843, 53435.48541553853, 53436.174357322925, 53524.51299592876, 53595.56261995373, 53624.22563848979, 53648.213658110864, 53719.99291173274, 53722.5691695816, 53784.83732407583, 53800.382442890754, 53803.484671085556, 53810.604561921835, 53815.6766383191, 53822.167977256875, 53834.464536427724, 53848.13866138428, 53871.81558382604, 53873.69500230976, 53876.31173767886, 53877.79747772334, 53895.191220149325, 53919.206347130224, 53941.55245843712, 53954.50854189845, 53960.92104231771, 53964.669398526734, 53974.900117410965, 54026.760373200144, 54050.90607046186, 54057.363141186026, 54102.436831703475, 54109.25660458415, 54132.81797730582, 54142.43151205042, 54177.49582847118, 54199.215292194036, 54203.52577970816, 54205.79973025291, 54234.203101623134, 54335.062480417655, 54341.33190670151, 54370.93102494393, 54399.67524623744, 54417.223993301624, 54432.2273377444, 54435.741347640884, 54486.01645114724, 54514.27895094358, 54534.88993931019, 54641.04846215554, 54643.894839331806, 54657.539039910625, 54701.03865036566, 54702.077844794694, 54725.17295940945, 54738.95305706456, 54740.38722446782, 54774.48617917986, 54787.11083404887, 54791.097724448904, 54794.17370999975, 54832.47383772238, 54885.54083235844, 54892.85333122779, 54910.65524997061, 54925.36537439141, 54927.45328670119, 54943.851123676985, 54965.181054420005, 55004.45113839936, 55064.7014959191, 55105.419885428404, 55120.91280657475, 55123.86015232587, 55138.6747891218, 55176.61686399969, 55217.80083610615, 55240.1816763954, 55256.20152108712, 55259.05676549469, 55263.766261038065, 55298.17001004878, 55300.46877812658, 55305.10335765837, 55337.98874357149, 55424.605054155145, 55451.562455245126, 55477.758099222556, 55492.73930575457, 55497.346403433294, 55514.56956466, 55524.80248785008, 55541.47482995804, 55575.89063766661, 55594.02267819244, 55639.51655345339, 55705.22541433154, 55726.89886586217, 55751.27129306909, 55758.41170606631, 55782.19656048148, 55805.79966719851, 55822.69738563505, 55930.29534430829, 55937.72874889283, 55970.22728648975, 56022.41821741566, 56039.10538252688, 56049.984037225455, 56057.425275868714, 56065.632179933644, 56090.11106038358, 56131.4722775224, 56149.95362834916, 56191.55094291158, 56199.92332378356, 56203.14066126889, 56211.11670318048, 56214.219101144154, 56226.721908335756, 56276.01952829309, 56294.05288573628, 56308.65615925982, 56313.88136612497, 56329.45650881985, 56340.68865847359, 56350.77020374404, 56370.21172095662, 56398.18173056083, 56431.5669023394, 56431.84548753624, 56435.87672456462, 56440.005108428624, 56459.041188915115, 56463.216431787994, 56465.06264612517, 56509.41509325566, 56543.51502112785, 56547.608315274876, 56609.88644839797, 56645.90035233057, 56665.10712015147, 56673.88395363126, 56698.866970878546, 56722.72823064886, 56724.93383721627, 56771.23828066258, 56779.13133245892, 56786.537178569575, 56803.826456255636, 56824.154219263306, 56881.864298552064, 56882.9707746121, 56906.7037860861, 56927.33581584319, 56942.06701606854, 56997.04080746508, 56999.32997359542, 57022.53229855964, 57063.42120139474, 57065.38591002758, 57083.9701344123, 57096.16074695449, 57096.68473588687, 57106.62200295263, 57162.81469009134, 57227.74434229529, 57230.20383954175, 57277.6740829716, 57322.65853895153, 57336.99477580136, 57355.89481707485, 57376.62115604436, 57386.01330973796, 57424.558052362336, 57507.74641864469, 57538.70821708878, 57543.109560017576, 57551.957855956076, 57560.49911731609, 57611.59390315482, 57612.85973205209, 57642.53387889183, 57708.79743052916, 57727.72135777093, 57729.56607795494, 57742.42480193727, 57772.90013336986, 57785.70802539651, 57803.95397557122, 57815.90010793325, 57818.34131193723, 57832.88703868741, 57840.30247977229, 57844.72743130285, 57868.853293639004, 57873.55459206454, 57885.01632141852, 57897.23936838891, 57914.07810582922, 57923.641122533925, 58080.880159038585, 58091.54154500863, 58107.337208378245, 58171.53247764449, 58258.11752400737, 58293.168627486186, 58343.19823892461, 58348.98098319147, 58357.83206527159, 58446.97477508889, 58472.52806621371, 58552.541417276225, 58556.58678151519, 58575.819947894335, 58585.89704708784, 58608.83501252163, 58626.72500855329, 58634.65304583858, 58682.14434896475, 58703.302731541036, 58711.994604061256, 58736.09155717942, 58751.22480872953, 58778.1507185536, 58833.32212704165, 58855.84767636916, 58865.291288500135, 58895.68045694343, 58910.43934551981, 58921.96891309045, 58934.5765735726, 58941.05132738802, 58943.750076502794, 58952.41300241594, 58963.67520729477, 59001.74190064051, 59012.845432198876, 59015.58301868317, 59041.8395244648, 59053.37625549366, 59111.86883498737, 59150.38877954217, 59165.46382868958, 59196.44779480949, 59254.370622215676, 59257.5350842971, 59277.26332349618, 59331.03458663319, 59336.19443290992, 59361.82938934867, 59425.594209212955, 59526.672434620865]
+
+    # X111111_1 = X111111[:100]
+
+    normalized_list = []
+
+    for value in X111111_1:
+        Normalized_value_normal = (Scale * (value - min_val_1) / (max_val_1 - min_val_1)) + Intercept
+        normalized_list.append(Normalized_value_normal)
+
+
+    Price1 = normalized_list
+    Price2 = np.array(Price1, dtype=np.float64)
+    Price3 = HE.encodeFrac(Price2)
+    Normalized_value = HE.encryptPtxt(Price3)
+
+
+
+    # print('*************************************** Step 2 Start *****************************************')
+
+    normalized_Values, Diff_errors = Step2(Normalized_value, Scale, Intercept, min_val_1, max_val_1, bestK, bestNumberOfTerms, normalized_list, X111111_1)
+
+    # print('*************************************** Step 2 End *****************************************')
+
+    # print('*************************************** Step 3 Start *****************************************')
+
+    degree, coffs = Step3(Diff_errors, normalized_Values, Normalized_value)
+
+    # print('*************************************** Step 3 End *****************************************')
+
+    X111111_1 = [35016.28145116404, 35036.225677144146, 35037.40243501654, 35039.44696780191, 35103.9454071788, 35116.55640510176, 35117.41969350071, 35145.255948346734, 35168.69654295035, 35177.25690662103, 35245.37397355998, 35256.909871387594, 35264.77716675814, 35274.18632671659, 35291.264695652484, 35305.84061238085, 35354.87098777762, 35357.5364046137, 35387.754022349596, 35406.63341728874, 35414.381787816776, 35427.84793756211, 35508.05656530628, 35519.19197378864, 35525.10921254323, 35531.65927855524, 35535.54959218429, 35560.49245724156, 35587.11160194857, 35627.96942840685, 35642.746410851316, 35655.10617882246, 35674.00918861764, 35683.78717611099, 35684.78997267705, 35704.27537813289, 35752.42086800673, 35823.6963087843, 35836.56168581223, 35889.40185584162, 35902.07855674877, 35904.761368681364, 35925.60709418876, 35960.58232216433, 35968.11880423478, 36043.846524593195, 36046.08436146724, 36063.72023891807, 36088.06952516116, 36152.10111298384, 36158.799381639794, 36166.02404222424, 36168.12553700813, 36180.7087739894, 36189.90929789569, 36217.71550013177, 36274.62372900467, 36308.58379372606, 36322.953338493244, 36408.018841660654, 36421.332505548016, 36427.718210064864, 36434.684849809884, 36447.296193885144, 36526.87443752822, 36533.18754429788, 36561.89443147449, 36573.56081753695, 36599.95791890268, 36613.92317609054, 36615.83476998803, 36634.704158600034, 36636.04956446965, 36646.52070234598, 36681.001115313826, 36715.74386590189, 36732.4520246325, 36740.68278284029, 36762.10307512569, 36786.50587102459, 36814.660979152875, 36860.93408179396, 36869.21271148906, 36885.283509862755, 36899.0013911143, 36930.98949875752, 36942.95129090296, 36956.4749042784, 36978.17422553815, 37007.62347441536, 37039.69108966832, 37101.09828106001, 37142.33527826399, 37147.15983013036, 37159.209266584345, 37208.46682988259, 37210.91715469456, 37228.96842170119, 37247.78834252487, 37287.57690670056, 37289.63579726347, 37312.74881132959, 37316.04390613827, 37323.340558533804, 37359.30925281753, 37417.814324136016, 37427.52599580936, 37431.51086817449, 37438.701533390275, 37454.2551913256, 37478.82444489984, 37547.101555798276, 37563.312208337804, 37564.490804397894, 37585.62562248641, 37654.63489028898, 37688.61798582891, 37700.999173021984, 37713.400495392285, 37824.03083844706, 37836.533526700754, 37846.87285612098, 37850.10168190568, 37878.23440044739, 37967.69629556276, 38038.18274033015, 38058.31991501429, 38091.92023067669, 38093.53269720468, 38113.66672053703, 38139.675677979896, 38150.608697664415, 38160.05025254612, 38180.313377147744, 38202.211235081464, 38280.84245193734, 38281.52580205189, 38388.369097484334, 38392.442546629885, 38401.192501409656, 38414.81008204242, 38422.76121296707, 38442.214975994626, 38487.928473290995, 38573.40957371966, 38575.67429548103, 38589.710852131466, 38602.18567077124, 38621.678405558385, 38625.14215298516, 38650.17670292515, 38689.468838198234, 38779.02539243726, 38787.11783530273, 38795.157863575885, 38842.03346887427, 38846.67899651172, 38874.47573543319, 38903.45823473331, 38905.476025088516, 38906.42189651904, 38976.68087656482, 39003.21862757242, 39037.32460042647, 39039.18934365807, 39040.99930155801, 39064.08863736685, 39143.31178327574, 39152.95009900162, 39156.318449575374, 39158.990493791156, 39186.44781560106, 39261.31183044569, 39269.33771748836, 39276.95310527671, 39278.1806518825, 39282.923240251715, 39303.44437295208, 39317.71687999174, 39325.009338841104, 39339.72081352984, 39340.913846874864, 39359.20454220717, 39364.232464168956, 39367.94181142144, 39374.112454611786, 39377.127012513956, 39377.390183292875, 39386.42642927509, 39421.43745896431, 39433.22402626474, 39455.17350518678, 39512.37784236026, 39525.47308283522, 39548.88827752638, 39558.2085579179, 39565.12847518965, 39574.80395946227, 39575.124133656514, 39593.28054083975, 39598.40026884018, 39615.63496375395, 39633.32258530264, 39651.200434195875, 39658.15143469701, 39708.630570180365, 39715.966417746546, 39725.830420255385, 39759.40288258177, 39791.662569985405, 39797.74433714502, 39814.59812016172, 39816.03103346052, 39870.441946565006, 39887.78115619165, 39923.71868417674, 39970.55336091691, 40006.62397892818, 40011.27751800849, 40028.890127510036, 40029.09929343919, 40043.58583417764, 40067.27614519953, 40115.59202844218, 40127.5499144157, 40191.334371912824, 40254.198747182105, 40263.70661914638, 40265.27861134781, 40276.72459222673, 40310.602892662086, 40325.5415065159, 40346.651126674406, 40347.54062312054, 40386.15376738441, 40390.8333294074, 40400.406959940585, 40421.36583821192, 40431.05957158896, 40437.59146749321, 40468.20210112422, 40496.39452165465, 40516.392937452074, 40609.0214129307, 40629.5793906837, 40673.50358871649, 40705.26974233931, 40716.906680108965, 40743.718266723045, 40805.80648458265, 40820.44539063432, 40872.615889496774, 40900.27616155535, 40924.13804242782, 40928.58413764007, 40969.38713434577, 41048.28734106035, 41055.687797101076, 41065.51466443384, 41095.40812024891, 41103.69882852531, 41115.39717863023, 41163.34621849932, 41179.14411920822, 41236.74914208288, 41263.71337738827, 41289.78957281844, 41355.24264155911, 41355.97933046735, 41358.188146295855, 41389.287082137205, 41436.065059716115, 41464.63584743628, 41480.8290799663, 41529.2649328329, 41579.359389787365, 41581.310677220434, 41613.092159604625, 41620.15500965166, 41644.20791920585, 41839.39299209223, 41888.456140497205, 41929.94258536013, 41953.51829770539, 41955.44637894592, 41976.199110973146, 41990.72976974915, 42014.214104550854, 42052.49374917843, 42057.96453288401, 42062.46345876284, 42098.667162726924, 42198.57199895325, 42271.18470766525, 42286.23561763821, 42369.240864169326, 42405.73928821749, 42447.87698633602, 42473.14673228139, 42474.85423351597, 42484.319758504906, 42495.604340825186, 42514.36631623539, 42531.739401164916, 42584.45238696148, 42715.54840937654, 42729.73357351362, 42752.30472533133, 42765.93038763771, 42817.44313324422, 42854.60939699764, 42875.9622351662, 42907.840409543234, 42912.9100202438, 42921.52068247943, 42960.8799659972, 42984.52420001947, 42988.17393301993, 42989.065564816934, 43015.22682745656, 43036.79339038068, 43064.994637252305, 43071.681080916554, 43073.85325795992, 43080.79209176893, 43098.400974797594, 43099.756369448005, 43125.410016783644, 43140.04175941215, 43141.35196727592, 43205.79407908935, 43245.32704197367, 43260.35973097032, 43291.0504709674, 43317.98656207614, 43320.152943035384, 43329.25990636409, 43344.3102516009, 43344.81975537789, 43350.48808602736, 43356.083759500296, 43379.12991606502, 43406.74814571649, 43436.54481036408, 43440.087412274486, 43483.162969038676, 43502.47715855325, 43512.17541176569, 43514.90440705193, 43538.373933887124, 43577.63659324175, 43584.67147706906, 43610.42839750598, 43622.63381881078, 43678.789454528494, 43686.10792792755, 43713.983208266436, 43716.10524378265, 43726.13627963398, 43803.08365070655, 43872.20279027555, 43913.60147341978, 43928.47348508401, 43968.88307184723, 43980.820020582316, 43985.39201261838, 43991.006866531694, 44020.024752996775, 44038.90765288536, 44123.725627886786, 44130.145520214355, 44136.04447743853, 44163.70812125897, 44187.23297204648, 44209.347964565786, 44211.40083526701, 44240.70560851889, 44253.873963221304, 44278.199206497564, 44285.88255054804, 44297.068027141155, 44302.367632670874, 44325.174246616734, 44368.2296655663, 44406.364280765236, 44424.77840878438, 44429.09001735254, 44443.7223413141, 44452.3497901604, 44454.84697391035, 44475.22207820934, 44475.607935164044, 44490.62228826866, 44549.01989189866, 44550.4209409427, 44559.98460084478, 44633.734875636765, 44674.29201068648, 44684.69918230521, 44712.82632566927, 44752.9337016669, 44779.54434327069, 44822.037032910885, 44841.341268495526, 44860.78608146823, 44878.305161762975, 44890.44795546027, 44909.73029628923, 44931.88738426923, 45002.75496658278, 45033.145945409604, 45047.51343669556, 45094.393883275676, 45112.11012005547, 45113.523166233776, 45114.68609292578, 45125.322321129905, 45148.448484201595, 45178.331876888486, 45189.90093064034, 45226.02580994851, 45286.888798188185, 45313.83582323024, 45317.83321960323, 45318.68452252755, 45351.3444719413, 45363.02300551641, 45377.78037290708, 45459.219738948785, 45461.84833566263, 45474.64010849125, 45492.671253634886, 45496.924191444006, 45535.71465429128, 45611.05114364158, 45617.33271915959, 45627.740055016024, 45661.66140834308, 45697.71917964363, 45710.15219250573, 45717.338116004066, 45723.7975132129, 45740.132695985965, 45758.08158852121, 45760.45299897417, 45795.50193424639, 45834.7951286184, 45868.70730482397, 45891.19543320841, 45945.6089569708, 45981.845462958285, 46029.22460411996, 46076.02567043146, 46097.35965913242, 46098.845948505346, 46103.42237490007, 46133.31059545158, 46158.94602765439, 46190.84416973358, 46208.09285863518, 46268.35197480551, 46321.621036315875, 46357.55935746034, 46386.050215811236, 46386.82192139058, 46417.929116521365, 46458.622245583305, 46461.487782490665, 46466.42377253495, 46502.09272791134, 46544.418296339296, 46576.853469165624, 46587.83905304085, 46597.90876464802, 46683.18232777197, 46686.29862645027, 46719.2848161803, 46731.68882974, 46772.05496330821, 46854.43891767328, 46868.825949353944, 46882.05209326642, 46891.009680181596, 46906.94339637301, 46954.92619391989, 46963.22020928068, 47009.29522139117, 47041.673073010475, 47043.69202976161, 47083.768501618106, 47109.04368426309, 47118.91419025723, 47160.18092267485, 47180.56488058627, 47331.77456071121, 47344.53782316661, 47353.63116737938, 47371.06328901458, 47401.49809196156, 47402.38617360693, 47407.51992556343, 47409.285050482074, 47422.531601251576, 47464.47829751602, 47466.64413673018, 47484.98271099024, 47495.93590019062, 47589.93386721913, 47639.73001025737, 47644.00102222327, 47668.47891825869, 47674.05325163012, 47695.44937897763, 47710.12460752005, 47720.41386876893, 47764.19528461509, 47778.42782479672, 47844.226160363556, 47863.89863550496, 47880.4136422687, 47898.373797990556, 47906.50764022983, 47916.462055925316, 47930.07589519027, 47994.8623673371, 48001.03285004075, 48005.76800620587, 48011.05892580599, 48032.773610244156, 48084.50371537245, 48110.21718490693, 48112.61496297783, 48113.023073440505, 48191.61640073774, 48200.05973718604, 48253.41369031703, 48289.470474639995, 48324.594924289646, 48328.69339421863, 48341.80778897199, 48387.11741128655, 48428.18367293328, 48444.92727762591, 48451.61359585884, 48457.48346775242, 48461.978980745276, 48475.938964729576, 48568.99808389899, 48610.84062857409, 48663.2939436084, 48691.68423884748, 48724.73348782517, 48730.42167455683, 48755.54408387465, 48823.978477659446, 48829.70988009237, 48834.82500044414, 48836.4611345263, 48874.1927215338, 48876.74327309675, 48877.545862088926, 48882.28007023616, 48946.45409261335, 48951.53635886903, 49000.01923673038, 49009.68271970958, 49033.47217632236, 49035.55614037512, 49051.608755704096, 49074.62876149515, 49111.9406595693, 49137.99265744904, 49144.56928797228, 49145.66312712943, 49170.649091002124, 49175.64723124546, 49207.738960294635, 49225.294465790306, 49235.33899806057, 49268.10159933982, 49287.297820840904, 49288.84531274455, 49312.36798685358, 49349.47652472179, 49377.94714409885, 49394.16702799761, 49396.135101450054, 49410.8499272656, 49500.51967076016, 49530.59689956159, 49546.07094213992, 49561.6428665664, 49582.69505562921, 49615.50787979891, 49631.72797507975, 49672.55795212417, 49673.36477135209, 49693.71485804355, 49694.05608297728, 49707.75196927306, 49719.16494807229, 49726.28962557589, 49791.04316254768, 49826.47476820375, 49828.03092155828, 49833.699863151836, 49841.23446189363, 49851.33530053663, 49866.90199808366, 49872.47891902124, 49882.4435742476, 49884.373424176374, 49912.58528300413, 49962.33028630678, 49966.85434375977, 49974.2176381951, 50053.96480743485, 50063.57617912269, 50118.37226889323, 50143.65698015278, 50154.60691055801, 50182.80940598224, 50184.6366496513, 50264.10621365844, 50409.844936437614, 50415.64388083884, 50424.52283647563, 50428.95767212688, 50462.71910532612, 50501.6300531516, 50506.76242348978, 50586.34143703321, 50601.25782030437, 50609.89869691311, 50612.19284928893, 50617.20135202879, 50651.14320193941, 50654.26264730088, 50689.033839532174, 50722.69867789677, 50732.956070812856, 50735.672596981516, 50737.252186508544, 50746.75435449511, 50803.66157730225, 50806.24401504863, 50811.204345505175, 50825.254223284894, 50858.0070910807, 50873.43241917154, 50881.10435906533, 50886.62648776098, 50927.613730098456, 50932.56033300236, 50953.008866320335, 50956.15536061355, 50970.44624714594, 51000.863588600136, 51001.31520554983, 51014.81538145079, 51036.36338485255, 51042.538203522505, 51138.67651854446, 51207.174663889484, 51249.148486616614, 51293.78120094942, 51304.75924461701, 51320.15088337481, 51386.81819141896, 51400.05924489502, 51425.93201810334, 51436.66789107413, 51442.167383900436, 51447.80906921448, 51469.53545699734, 51487.707162191495, 51497.39486391832, 51564.23895521197, 51581.44621738146, 51596.505968679485, 51601.00785050182, 51626.22167757998, 51644.91202050423, 51690.94764857458, 51694.18460098128, 51705.80509455137, 51789.790060412764, 51839.40135434599, 51902.055244638024, 51993.516566777005, 52013.77310411971, 52028.38250857951, 52029.19493162267, 52052.12221691667, 52053.86927161846, 52065.413935728095, 52096.934942361724, 52101.951078462895, 52109.23389287625, 52125.756144060644, 52157.44666551345, 52158.375457880305, 52181.774939715186, 52215.64201809666, 52215.77587221341, 52232.39137548201, 52307.66385661002, 52324.89884766037, 52361.17875277971, 52373.495667358366, 52389.145453356, 52416.761436368644, 52417.394819905676, 52451.729978354306, 52458.09357391716, 52466.17732679169, 52525.70706595527, 52581.50887180095, 52595.02810375955, 52618.3987426494, 52620.3792239608, 52692.142589959156, 52726.32214137647, 52754.620502935504, 52778.43034938865, 52844.51333232583, 52864.929470666815, 52887.70492211614, 52915.060288477776, 52926.33301192442, 52929.89752879602, 52953.860903938345, 52986.76696933441, 52988.576395866636, 52994.755193012665, 53044.29057164796, 53083.86205792113, 53125.67904517341, 53146.6782809014, 53164.863398984395, 53251.598181043126, 53255.04203037058, 53282.41322752004, 53288.04383510271, 53299.90212917871, 53305.5415293338, 53383.52637292391, 53412.444152279626, 53425.89582401419, 53518.695055377626, 53523.218015711194, 53545.37883398516, 53546.220599397624, 53610.82150642551, 53634.774762284185, 53685.90493055465, 53686.57472657453, 53711.76777294415, 53733.84529721446, 53733.95427143137, 53800.50265192814, 53807.27701764455, 53851.35590651802, 53900.5228654346, 53916.62670206336, 53925.14136613083, 53936.390470917424, 53941.87252985603, 53960.98667697213, 54021.3215305386, 54035.20553589894, 54090.27011330079, 54141.0096592636, 54192.30849111249, 54201.82475429478, 54215.05078335508, 54266.33791478547, 54298.79042123035, 54299.28718862828, 54339.49904354729, 54394.83980271545, 54396.908616207686, 54408.41185514157, 54423.23859148659, 54434.840634575055, 54436.881447576234, 54442.31165116075, 54450.835690327556, 54490.053343150015, 54505.69945148095, 54516.914649748076, 54524.699963848005, 54530.832675560654, 54534.40766302732, 54543.805163982106, 54558.26669414053, 54569.50735658281, 54615.281106774346, 54622.03946812116, 54622.934753891925, 54637.41863581727, 54642.34498798162, 54645.55120932734, 54671.6970034839, 54673.778297570156, 54715.413869800745, 54724.80019012773, 54762.70039211679, 54809.7928991112, 54811.00272401999, 54940.143463746455, 54956.439976969516, 54956.892313056844, 54988.15385332622, 55010.14502908745, 55010.24389054722, 55014.16522010519, 55021.740764954666, 55025.05044936313, 55047.37013214608, 55086.860574581224, 55109.08392702518, 55122.59578836124, 55189.21195481958, 55190.863284317544, 55201.14170282884, 55249.34604173543, 55334.159478297224, 55339.62724272193, 55351.56911925668, 55371.53477739169, 55431.78544302126, 55446.46386920765, 55452.418566458335, 55566.699216168796, 55570.072867310126, 55596.1488875911, 55612.5606381314, 55619.26765741946, 55625.81904394302, 55651.294251286294, 55657.58399365225, 55673.11710719022, 55698.00285046773, 55708.51514196926, 55721.93248542296, 55722.73349433628, 55737.97098353323, 55763.668120152535, 55782.5167762973, 55802.98192195443, 55813.47940291386, 55816.45601204197, 55833.62798842679, 55854.02698872055, 55987.903718912494, 56014.79927835325, 56056.18540002871, 56078.783790565896, 56108.95891093749, 56125.711995682956, 56136.7641483513, 56139.66034105557, 56161.746187400044, 56179.34625152485, 56228.379681846054, 56242.44978706882, 56247.228417499, 56250.684767142346, 56296.24335944046, 56304.53737474895, 56315.151863481195, 56332.29009940408, 56341.13069121989, 56353.48819702378, 56389.62347746131, 56392.66332062891, 56435.36293490896, 56459.7150322478, 56512.55259341984, 56513.576681379054, 56534.48027919251, 56545.576991507274, 56566.238525884815, 56657.85347111859, 56711.699081791114, 56735.049572912176, 56756.335174841166, 56771.9524121156, 56812.634646668324, 56812.81336092413, 56826.754196284106, 56836.965707637086, 56886.084239664124, 56895.78444502656, 56919.425066236756, 56927.416426688826, 56952.49273897418, 56997.811085996465, 57029.35068341933, 57035.35987235261, 57069.64834077141, 57123.46851744095, 57209.64986817286, 57213.45314084759, 57231.00603211284, 57232.18455709295, 57240.083505937764, 57244.961634803214, 57265.762185256695, 57275.84242258318, 57297.43460821537, 57327.73697939807, 57334.107667080214, 57337.36012415374, 57342.47945961906, 57344.47955854851, 57361.547866786306, 57428.34698335484, 57486.08777961848, 57493.070871908465, 57519.93306855718, 57532.194133745885, 57533.98974009849, 57555.02087583763, 57556.991252721724, 57606.34364210014, 57626.783998296385, 57642.163125702005, 57687.14412123215, 57703.74797839175, 57752.190378670544, 57767.92011069218, 57782.553213178406, 57829.3391978614, 57877.7253974566, 57887.469597221774, 57924.488712977705, 58006.19150124114, 58020.09530562628, 58029.33195695463, 58093.899720490925, 58100.888816436796, 58117.993843933815, 58156.22907220927, 58176.30840020183, 58190.99423332749, 58201.05460881694, 58214.18462938354, 58216.63299664685, 58250.292477891475, 58250.99589583938, 58256.49822180266, 58392.29229987789, 58411.23688738274, 58420.11519535234, 58422.88989582866, 58458.955761929436, 58471.961831242996, 58533.53091285711, 58589.55583842851, 58597.842038484, 58613.49898455998, 58629.01638828978, 58644.23279519183, 58645.50196242599, 58666.630898252544, 58683.605714051315, 58706.8769036729, 58754.86706532705, 58789.12822808494, 58814.18214838473, 58827.42660714119, 58829.57425152707, 58866.35636217202, 58882.49488606157, 58891.26569022516, 58898.06527164114, 58934.236563229395, 58958.496099995886, 58965.429710889155, 59131.84336619252, 59152.23796836177, 59172.08556244266, 59176.43074037265, 59187.42991160066, 59223.924060975376, 59240.87087717044, 59245.58818752531, 59262.42030987488, 59280.939314427, 59315.91261672157, 59318.67113428288, 59342.51797179411, 59344.01807454218, 59355.34640272668, 59414.659812137084, 59466.97567769773, 59491.10443070723, 59501.84541456478]
+
+    # X111111_1 = X111111[:100]
+
+    normalized_list = []
+
+    for value in X111111_1:
+        Normalized_value_normal = (Scale * (value - min_val_1) / (max_val_1 - min_val_1)) + Intercept
+        normalized_list.append(Normalized_value_normal)
+
+
+    Price1 = normalized_list
+    Price2 = np.array(Price1, dtype=np.float64)
+    Price3 = HE.encodeFrac(Price2)
+    Normalized_value = HE.encryptPtxt(Price3)
+
+    # print('*************************************** Step 4 Start *****************************************')
+
+    best_K_correction, min_error_value, mse = Step4(Normalized_value, Scale, Intercept, min_val_1, max_val_1, bestK, bestNumberOfTerms, coffs, normalized_list, X111111_1)
+
+    # print('*************************************** Step 4 End *****************************************')
+
+    end_time = time.time()
+
+    elapsed_time = end_time - start_time
+
+    # print(f"Time taken to execute the program: {elapsed_time} seconds")
+
+    output_string = f"{bestK}, {bestNumberOfTerms}, {degree}, {coffs}, {best_K_correction}, {min_error_value}, {mse}\n"
+
+    with open(filename, 'a') as file:
+        file.write(output_string)
+        file.write('\n')  # Write a new line after the output string
+
+    return min_error_value
+
+
+def main(in_Scale, in_Intercept):
+
+    _r = lambda y: np.round(y, decimals=64)
+
+    Scale = in_Scale
+    Intercept = in_Intercept - (Scale/2.0)
+    filename = 'Consumer_TAYLOR_output-' + str(Intercept) + '-' + str(Scale) +'.txt' 
+
+    allErrors = []
+
+    for i in range(30):
+        error = SubMainFunction(Scale, Intercept, filename)
+        allErrors.append(error)
+
+    print(allErrors)
+    
+    mean = np.mean(allErrors)
+    stddev = np.std(allErrors)
+
+    print('MEAN: ', mean)
+    print('stddev: ', stddev)
+
+
+if __name__ == "__main__":
+    Scale = float(sys.argv[1])
+    Intercept = float(sys.argv[2])
+    main(Scale, Intercept)
+

@@ -1,0 +1,13 @@
+{
+  "original": "Range_4_584_5000.npy",
+  "shape": [
+    42023338
+  ],
+  "dtype": "float64",
+  "parts": [
+    "Range_4_584_5000.part01.npy",
+    "Range_4_584_5000.part02.npy",
+    "Range_4_584_5000.part03.npy",
+    "Range_4_584_5000.part04.npy"
+  ]
+}
