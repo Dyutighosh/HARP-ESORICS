@@ -98,12 +98,5 @@ The implementation uses a **locally patched Pyfhel build** together with protoco
 
    These files were modified to expose the new backend functionality to Python through helper APIs such as `plaintext_qi`, `plaintext_to_raw`, and `raw_to_plaintext`. The protocol code directly depends on these APIs to read encoded CKKS coefficients, split them into additive shares, reconstruct plaintexts from shared coefficients, and preserve exact encoded-domain semantics while still using Pyfhel for encryption, decryption, relinearization, rotation, and rescaling.
 
-3. **Build-system and protocol-side files**
-   - `Pyfhel/setup.py`
-   - `protocol_scripts/RTP_CKKS_PrivPrice_exact_v7.py`
-   - `protocol_scripts/RTP_CKKS_PrivPrice_exact_5M.py`
-
-   `setup.py` was adjusted in the final working build so the patched Pyfhel source links correctly in the local environment. On the protocol side, `RTP_CKKS_HARP.py` is the exact encoded-domain implementation that requires the patched raw CKKS APIs, and `RTP_CKKS_HARP_5M.py` extends the same implementation with large-population support.
-
 - [PyFhel GitHub Repository](https://github.com/ibarrond/Pyfhel)
 
