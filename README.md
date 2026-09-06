@@ -80,23 +80,5 @@ The patched protocol code explicitly depends on raw CKKS helper APIs such as `pl
 
 In short, the Pyfhel changes were made so that our implementation could keep the **Pyfhel/CKKS toolchain** while supporting the **exact encoded-domain additive sharing and masking logic** of the current protocol implementation. The inverse approximation, RTP update equations, and parameter schedule remain reused from the original HARP implementation.
 
-### Modified files
-
-The implementation uses a **locally patched Pyfhel build** together with protocol-side scripts that depend on those new low-level APIs. The modified files can be found in the folder: `Modified_Files_Pyfhel/`.
-
-1. **Native/backend Pyfhel files**
-   - `Pyfhel/Pyfhel/Afhel/Afhel.h`
-   - `Pyfhel/Pyfhel/Afhel/Afseal.h`
-   - `Pyfhel/Pyfhel/Afhel/Afseal.cpp`
-
-   These files were modified to add native support for working with the **raw encoded CKKS plaintext representation**. In particular, they expose low-level access to the active coefficient-modulus chain of plaintexts/ciphertexts and allow exporting/importing a CKKS plaintext as its raw RNS/NTT coefficient vector. This is what enables exact encoded-domain additive sharing and coefficient-domain masking in our protocol.
-
-2. **Cython / Python binding files**
-   - `Pyfhel/Pyfhel/Afhel/Afhel.pxd`
-   - `Pyfhel/Pyfhel/Pyfhel.pxd`
-   - `Pyfhel/Pyfhel/Pyfhel.pyx`
-
-   These files were modified to expose the new backend functionality to Python through helper APIs such as `plaintext_qi`, `plaintext_to_raw`, and `raw_to_plaintext`. The protocol code directly depends on these APIs to read encoded CKKS coefficients, split them into additive shares, reconstruct plaintexts from shared coefficients, and preserve exact encoded-domain semantics while still using Pyfhel for encryption, decryption, relinearization, rotation, and rescaling.
-
 - [PyFhel GitHub Repository](https://github.com/ibarrond/Pyfhel)
 
